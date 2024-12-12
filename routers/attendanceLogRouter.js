@@ -4,7 +4,7 @@ const { Sequelize, Op }= require("sequelize");
 const { formatPhoneNumber, getCmDtNm, getUserNm, getCourseNm  } = require("../utils/commonUtils");
 const { format } = require('date-fns');
 const router = express.Router();
-
+const todayYearMonthDay = format(new Date(), 'yyyy-MM-dd'); // 오늘이 강좌 기간 내에 해당되는 날인지
 
 /** Beacon 비즈니스 로직 추가 후 개발 예정 */
 
@@ -53,11 +53,29 @@ router.get("/student/:sID", async (req, res, next) => {
                         log => log.courseID === course.Course.id
                     );
 
+                    var isCourseDateToday = false;
+                    const startDate = format(course.Course.startDate, 'yyyy-MM-dd');
+                    const endDate = format(course.Course.endDate, 'yyyy-MM-dd');
+
+                    console.log("todayYearMonthDay = " , todayYearMonthDay);
+                    console.log("format(course.startDate) = " , startDate);
+                    console.log("format(course.endDate) = " , endDate);
+
+                    console.log("todayYearMonthDay >= startDate = " , todayYearMonthDay >= startDate);
+                    console.log("todayYearMonthDay <= endDate = " , todayYearMonthDay <= endDate);
+
+                    if (todayYearMonthDay >= startDate
+                        && todayYearMonthDay <= endDate) {
+                        console.log("학생 - 오늘 이 수업은 출석하는 날이에요");
+                        isCourseDateToday = true;
+                    };
+
                     return {
                         courseID: course.Course.id,
                         courseName: course.Course.courseName,
-                        startDate: format(course.Course.startDate, 'yyyy-MM-dd'),
-                        endDate: format(course.Course.endDate, 'yyyy-MM-dd'),
+                        startDate: startDate,
+                        endDate: endDate,
+                        isCourseDateToday : isCourseDateToday,
                         entryStatus: attendance ? attendance.entryStatus : false,
                         exitStatus: attendance ? attendance.exitStatus : false,
                     };
@@ -188,29 +206,36 @@ router.get("/teacher/:tID/courses", async (req, res, next) => {
     try {
         // 1. 선생님이 강의 중인 강좌 목록 조회
         const enrolledCourses = await Course.findAll({
-            attributes: ["id","cmDtCd","courseName","userID"],
+            attributes: ["id","cmDtCd","courseName","userID","startDate","endDate"],
             where: { userID : tID },
             order: [['courseName', 'ASC']], // 선생님이 속한 강좌명 정렬 : 가나다 순 > 영어 알파벳 순
         });
 
         if (enrolledCourses.length > 0) {
             const cmmDtName = await getCmDtNm("CMCD01", enrolledCourses[0].cmDtCd);
-
-            const result = enrolledCourses.map(course => ({
-                cmDtCd: course.cmDtCd,
-                cmDtName : cmmDtName,
-                courseID: course.id,
-                courseName: course.courseName,
-            }));
             
             // 3. 데이터 재가공
             const teacherData = {
                 userID: Number(tID),
                 userName: tNm,
                 courses: enrolledCourses.map(course => {
+
+                    var isCourseDateToday = false;
+                    const startDate = format(course.startDate, 'yyyy-MM-dd');
+                    const endDate = format(course.endDate, 'yyyy-MM-dd');
+        
+                    if (todayYearMonthDay >= startDate
+                        && todayYearMonthDay <= endDate) {
+                        console.log("선생님 - 오늘 이 수업은 출석하는 날이에요");
+                        isCourseDateToday = true;
+                    };
+
                     return {
                         courseID: course.id,
                         courseName: course.courseName,
+                        isCourseDateToday : isCourseDateToday,
+                        startDate: startDate,
+                        endDate: endDate,
                     };
                 }),
             };
